@@ -17,6 +17,7 @@ local mainGroup = display.newGroup()
 local uiGroup = display.newGroup()
 
 local board = {} -- logic representation of game board
+local subBoards = {}
 local squares = {} -- game board buttons to deal with UI
 local players = {
     {name="X", human=true, value=1, wins=0},
@@ -25,6 +26,8 @@ local players = {
 local player = 1
 local gameCount = 0
 local state -- 'waiting', 'thinking' 'over'
+local firstTap = true
+local currentBoard
 
 local gap = 6 -- gap between cells and margins
 local size = (math.min(display.contentWidth, display.contentHeight) - 4*gap) / 3
@@ -40,7 +43,7 @@ local turnText -- display name of current player
 local titleText --
 local statsText
 local gameOverBackground, gameOverText
-local resetBoard, move, checkMove
+local resetBoard, move, checkMove, checkSubMove
 
 
 -----------------------------------------------------------------------------------------
@@ -69,7 +72,7 @@ display.setStatusBar(display.HiddenStatusBar)
 -- function to draw a line from (x1,y2) to (x2,y2) using center as origin
 -- with color `color` (default black) and line width `width` (default 8)
 local function drawLine(x1, y1, x2, y2, color, width)
-    print("Line from (".. x1..","..y1..") to (".. x2..","..y2..")")
+    --print("Line from (".. x1..","..y1..") to (".. x2..","..y2..")")
 	local line = display.newLine(backGroup, 
 		display.contentCenterX + x1*size,  display.contentCenterY + y1*size, 
 		display.contentCenterX + x2*size,  display.contentCenterY + y2*size 
@@ -114,30 +117,35 @@ local function nextPlayer(value)
 end
 
 
-move = function(k)
+move = function(k, kk)
     -- get square linked to current event
     local square = squares[k]
+    local subSquare = squares[k][kk]
 
     local filename = "assets/images/"..players[player].name..".png"
     local symbol = display.newImageRect(mainGroup, filename, subsize-4*gap *2, subsize-4*gap *2)
-    symbol.x = square.rect.x
-    symbol.y = square.rect.y
+
+    local subX, subY = mylib.k2xy(kk) 
+    print("sub X: " .. subX)
+    print("sub Y: " .. subY)
+    symbol.x = square.rect.x + (subX * 30)
+    symbol.y = square.rect.y + (subY * 30)
     square.symbol = symbol
     board[k] = players[player].value
 
-    if mylib.isWin(board) then
-        state = "over"
-        gameCount = gameCount + 1
-        players[player].wins = players[player].wins + 1
-        displayMessage("Player "..players[player].name.." Wins")
-        audio.play( winSound, { channel=3} )
-    elseif mylib.isTie(board) then
-        state = "over"
-        gameCount = gameCount + 1
-        displayMessage("Game Tied")
-    else
+    -- if mylib.isWin(board) then
+    --     state = "over"
+    --     gameCount = gameCount + 1
+    --     players[player].wins = players[player].wins + 1
+    --     displayMessage("Player "..players[player].name.." Wins")
+    --     audio.play( winSound, { channel=3} )
+    -- elseif mylib.isTie(board) then
+    --     state = "over"
+    --     gameCount = gameCount + 1
+    --     displayMessage("Game Tied")
+    -- else
         nextPlayer()
-    end
+    -- end
 end
 
 local function makeSmallBoards(event) 
@@ -147,12 +155,46 @@ end
 local function checkMainBoard(event)
     print(players[player].name .."'s move at square " .. event.target.k)
 
-    local row, col = mylib.k2rc(squares[event.target.k][4].kk)
+    --local row, col = mylib.k2rc(squares[event.target.k][4].kk)
 
-    squares[event.target.k].rect:removeEventListener( "tap", checkMainBoard )
+    if not firstTap and event.target.k == currentBoard then -- Check that the current move was done on the appropriate subboard
+        checkSubMove(event)
+    end
+    if firstTap then
+        currentBoard = event.target.k
+        firstTap = false
+    end
 
-    print(row.. " "..col)
 
+end
+
+checkSubMove = function(event) 
+    print(players[player].name .."'s move at MainBoard " .. event.target.k)
+
+    local x = math.floor((event.x-event.target.x) / (size/3) +0.5) + 2
+    --print ("X : "..x )
+    local y = math.floor((event.y-event.target.y) / (size/3) +0.5) + 2
+    --print ("Y : "..y )
+    local kk = mylib.rc2k(y,x)
+    print(players[player].name .."'s move at SubBoard " .. kk)
+
+    -- return if current square is not-empty
+    if board[event.target.k] ~= 0 and board[event.target.k][kk] ~= 0 then
+        print("\t cannot move to non-empty square")
+        return false
+    end
+
+    -- return if current player is non-human
+    if state ~= 'waiting' then
+        print("\t computer playing")
+        return
+    end
+
+    audio.play( tapSound, { channel=2})
+
+    -- place valid move
+    currentBoard = kk
+    move(event.target.k, kk)
 end
 
 
@@ -261,20 +303,23 @@ local function createBoard()
         rect:addEventListener( "tap", checkMainBoard )
         squares[k] = {value=0, rect=rect}
         for j = 1,9 do
-            for x = -99, 99, 99 do
-                for y = -99, 99, 99 do
-                    local row, col = mylib.k2rc(j)
-                    local x = display.contentCenterX + (col-4/2)*subsize + x
-                    local y = display.contentCenterY + (row-4/2)*subsize + y
-                    local rect = display.newRect( uiGroup, x, y, subsize - gap, subsize - gap)
-                    rect.k = k
-                    rect.alpha = 0.1
-                    rect:addEventListener( "tap", checkMainBoard )
-                    squares[k] = {value=0, rect=rect}
-                    squares[k][j] = {value=0, kk=j}
-                end
-            end
+            squares[k][j] = {value=0, kk=j}
         end
+        -- for j = 1,9 do
+        --     for x = -99, 99, 99 do
+        --         for y = -99, 99, 99 do
+        --             local row, col = mylib.k2rc(j)
+        --             local x = display.contentCenterX + (col-4/2)*subsize + x
+        --             local y = display.contentCenterY + (row-4/2)*subsize + y
+        --             local rect = display.newRect( uiGroup, x, y, subsize - gap, subsize - gap)
+        --             rect.k = k
+        --             rect.alpha = 0.1
+        --             rect:addEventListener( "tap", checkMainBoard )
+        --             squares[k] = {value=0, rect=rect}
+        --             squares[k][j] = {value=0, kk=j}
+        --         end
+        --     end
+        -- end
     end
 
     turnText = display.newText( mainGroup, "", 0, 0, "assets/fonts/Bangers.ttf", 24)

@@ -17,6 +17,26 @@ function mylib.rc2k(row, col)
     return (row-1)*3 + (col-1) + 1
 end
 
+function mylib.convertToCoord(val) 
+	if val == 1 then
+		return -1
+	elseif val == 2 then
+		return 0
+	else return 1
+	end
+end
+
+function mylib.k2xy(kk) 
+
+	local col, row = mylib.k2rc(kk)
+	local x = mylib.convertToCoord(row)
+	local y = mylib.convertToCoord(col)
+
+	return x, y
+end
+
+
+
 
 -----------------------------------------------------------------------------------------
 -- game logic functions
