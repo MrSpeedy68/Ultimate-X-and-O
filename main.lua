@@ -28,6 +28,7 @@ local gameCount = 0
 local state -- 'waiting', 'thinking' 'over'
 local firstTap = true
 local currentBoard
+local currentRect
 
 local gap = 6 -- gap between cells and margins
 local size = (math.min(display.contentWidth, display.contentHeight) - 4*gap) / 3
@@ -100,6 +101,18 @@ local function displayMessage(message)
     timer.performWithDelay( 2500, resetBoard )
 end
 
+local function mainBoardSquareWin(k) 
+    local square = squares[k]
+
+    local filename = "assets/images/"..players[player].name..".png"
+    local symbol = display.newImageRect(mainGroup, filename, size-4*gap, size-4*gap)
+
+    symbol.x = square.rect.x
+    symbol.y = square.rect.y
+    square.symbol = symbol
+    board[k] = players[player].value
+end
+
 
 local function nextPlayer(value)
 
@@ -131,37 +144,45 @@ move = function(k, kk)
     symbol.x = square.rect.x + (subX * 30)
     symbol.y = square.rect.y + (subY * 30)
     square.symbol = symbol
-    board[k] = players[player].value
+    subBoards[k][kk] = players[player].value
 
-    -- if mylib.isWin(board) then
-    --     state = "over"
-    --     gameCount = gameCount + 1
-    --     players[player].wins = players[player].wins + 1
-    --     displayMessage("Player "..players[player].name.." Wins")
-    --     audio.play( winSound, { channel=3} )
-    -- elseif mylib.isTie(board) then
-    --     state = "over"
-    --     gameCount = gameCount + 1
-    --     displayMessage("Game Tied")
-    -- else
-        nextPlayer()
-    -- end
-end
-
-local function makeSmallBoards(event) 
-
+    if mylib.isWin(subBoards[k]) then
+        mainBoardSquareWin(k)
+        currentRect.rect.alpha = 0.1
+        firstTap = true
+        if mylib.isWin(board) then
+            state = "over"
+            gameCount = gameCount + 1
+            players[player].wins = players[player].wins + 1
+            displayMessage("Player "..players[player].name.." Wins")
+            audio.play( winSound, { channel=3} )
+        end
+    elseif mylib.isTie(board) then
+        state = "over"
+        gameCount = gameCount + 1
+        displayMessage("Game Tied")
+    else
+         nextPlayer()
+    end
 end
 
 local function checkMainBoard(event)
     print(players[player].name .."'s move at square " .. event.target.k)
 
-    --local row, col = mylib.k2rc(squares[event.target.k][4].kk)
-
-    if not firstTap and event.target.k == currentBoard then -- Check that the current move was done on the appropriate subboard
+    if not firstTap and event.target.k == currentBoard and not mylib.isWin(subBoards[event.target.k]) then -- Check that the current move was done on the appropriate subboard
         checkSubMove(event)
+
+    elseif mylib.isWin(subBoards[event.target.k]) or mylib.isTie(subBoards[event.target.k]) then
+        currentRect.target.alpha = 0.1
+        firstTap = true
     end
-    if firstTap then
+    if firstTap and not mylib.isWin(subBoards[event.target.k]) and not mylib.isTie(subBoards[event.target.k]) then
         currentBoard = event.target.k
+
+        -- Change alpha of selected MainBoard
+        currentRect = squares[event.target.k]
+        currentRect.rect.alpha = 0.5
+
         firstTap = false
     end
 
@@ -192,8 +213,12 @@ checkSubMove = function(event)
 
     audio.play( tapSound, { channel=2})
 
-    -- place valid move
+    --Change alpha of main board to the next move
     currentBoard = kk
+    currentRect.rect.alpha = 0.1
+    currentRect = squares[kk]
+    currentRect.rect.alpha = 0.5
+    -- place valid move
     move(event.target.k, kk)
 end
 
@@ -239,16 +264,19 @@ resetBoard = function()
 
     -- logic representation of game
     board = {}
+    subBoards = {}
     for k = 1, 9 do
         board[k] = 0
+        subBoards[k] = {}
+        for j = 1,9 do
+            subBoards[k][j] = 0
+        end
     end
+        
     nextPlayer(1)
 end
 
 local function drawBoard() 
-    --drawLine(x1, y1, x2, y2, color, width)
-
-    --drawLine(-7/5, -7/5, -7/5, -3/5, "grey", 2)
     for x = -1, 1 do
         for y = -1, 1 do
             drawLine(-1/2 / 3.5 + x, -3/2 / 3.5 + y, -1/2 / 3.5 + x,  3/2 / 3.5 + y, "grey", 2)
@@ -257,15 +285,6 @@ local function drawBoard()
             drawLine(-3/2 / 3.5 + x,  1/2 / 3.5 + y,  3/2 / 3.5 + x,  1/2 / 3.5 + y, "grey", 2)
         end
     end
-
-
-
-    -- for k =1,9 do
-    --     for j = 1, 9 do
-    --         drawLine(-3/4 * k / 2, -3/2 * j / 2, -3/4 * k / 2,  3/2 * j /2, "grey", 2)
-    --         drawLine(-1/2, -3/2, -1/2,  3/2)
-    --     end
-    -- end
 end
 
 
@@ -282,17 +301,6 @@ local function createBoard()
 
     squares = {}
 
-    -- for k = 1, 9 do
-    --     local row, col = mylib.k2rc(k)
-    --     local x = display.contentCenterX + (col-4/2)*size
-    --     local y = display.contentCenterY + (row-4/2)*size
-    --     local rect = display.newRect( uiGroup, x, y, size - gap, size - gap)
-    --     rect.k = k
-    --     rect.alpha = 0.1
-    --     rect:addEventListener( "tap", checkMove )
-    --     squares[k] = {value=0, rect=rect}
-    -- end
-
     for k = 1, 9 do
         local row, col = mylib.k2rc(k)
         local x = display.contentCenterX + (col-4/2)*size
@@ -305,21 +313,6 @@ local function createBoard()
         for j = 1,9 do
             squares[k][j] = {value=0, kk=j}
         end
-        -- for j = 1,9 do
-        --     for x = -99, 99, 99 do
-        --         for y = -99, 99, 99 do
-        --             local row, col = mylib.k2rc(j)
-        --             local x = display.contentCenterX + (col-4/2)*subsize + x
-        --             local y = display.contentCenterY + (row-4/2)*subsize + y
-        --             local rect = display.newRect( uiGroup, x, y, subsize - gap, subsize - gap)
-        --             rect.k = k
-        --             rect.alpha = 0.1
-        --             rect:addEventListener( "tap", checkMainBoard )
-        --             squares[k] = {value=0, rect=rect}
-        --             squares[k][j] = {value=0, kk=j}
-        --         end
-        --     end
-        -- end
     end
 
     turnText = display.newText( mainGroup, "", 0, 0, "assets/fonts/Bangers.ttf", 24)
