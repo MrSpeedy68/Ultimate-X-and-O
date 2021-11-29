@@ -18,12 +18,7 @@ function mylib.rc2k(row, col)
 end
 
 function mylib.convertToCoord(val) 
-	if val == 1 then
-		return -1
-	elseif val == 2 then
-		return 0
-	else return 1
-	end
+	return val - 2
 end
 
 function mylib.k2xy(kk) 

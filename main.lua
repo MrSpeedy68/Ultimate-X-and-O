@@ -27,6 +27,7 @@ local player = 1
 local gameCount = 0
 local state -- 'waiting', 'thinking' 'over'
 local firstTap = true
+local impossibleTap = true
 local currentBoard
 local currentRect
 
@@ -44,7 +45,7 @@ local turnText -- display name of current player
 local titleText --
 local statsText
 local gameOverBackground, gameOverText
-local resetBoard, move, checkMove, checkSubMove
+local resetBoard, move, checkMove, checkSubMove, checkMainBoard
 
 
 -----------------------------------------------------------------------------------------
@@ -101,7 +102,7 @@ local function displayMessage(message)
     timer.performWithDelay( 2500, resetBoard )
 end
 
-local function mainBoardSquareWin(k) 
+local function mainBoardSquareWin(k, playerVal) 
     local square = squares[k]
 
     local filename = "assets/images/"..players[player].name..".png"
@@ -110,7 +111,9 @@ local function mainBoardSquareWin(k)
     symbol.x = square.rect.x
     symbol.y = square.rect.y
     square.symbol = symbol
-    board[k] = players[player].value
+    board[k] = playerVal
+
+    print("Player ".. playerVal .. " wins on board "..k)
 end
 
 
@@ -129,8 +132,14 @@ local function nextPlayer(value)
     end
 end
 
+local function resetTap() 
+    currentRect.rect.alpha = 0.1
+    currentBoard = nil
+    firstTap = true
+end
 
-move = function(k, kk)
+
+move = function(k, kk, impossible)
     -- get square linked to current event
     local square = squares[k]
     local subSquare = squares[k][kk]
@@ -138,18 +147,15 @@ move = function(k, kk)
     local filename = "assets/images/"..players[player].name..".png"
     local symbol = display.newImageRect(mainGroup, filename, subsize-4*gap *2, subsize-4*gap *2)
 
-    local subX, subY = mylib.k2xy(kk) 
-    print("sub X: " .. subX)
-    print("sub Y: " .. subY)
+    local subX, subY = mylib.k2xy(kk)
     symbol.x = square.rect.x + (subX * 30)
     symbol.y = square.rect.y + (subY * 30)
     square.symbol = symbol
     subBoards[k][kk] = players[player].value
 
+
     if mylib.isWin(subBoards[k]) then
-        mainBoardSquareWin(k)
-        currentRect.rect.alpha = 0.1
-        firstTap = true
+        mainBoardSquareWin(k, players[player].value)
         if mylib.isWin(board) then
             state = "over"
             gameCount = gameCount + 1
@@ -157,26 +163,47 @@ move = function(k, kk)
             displayMessage("Player "..players[player].name.." Wins")
             audio.play( winSound, { channel=3} )
         end
+
+        if mylib.isWin(subBoards[kk]) or mylib.isTie(subBoards[kk]) then
+            print("into impossible move within move function")
+            
+            resetTap()
+            nextPlayer()
+            
+        else
+            nextPlayer()
+        end
+
     elseif mylib.isTie(board) then
         state = "over"
         gameCount = gameCount + 1
         displayMessage("Game Tied")
+    elseif mylib.isWin(subBoards[kk]) or mylib.isTie(subBoards[kk]) then
+        print("into impossible move within move function 2")
+        nextPlayer()
+        resetTap()
     else
-         nextPlayer()
+        print("else statement 2")
+        nextPlayer()
     end
+
 end
 
-local function checkMainBoard(event)
-    print(players[player].name .."'s move at square " .. event.target.k)
+checkMainBoard = function(event)
+    --print(players[player].name .."'s move at square " .. event.target.k)
 
     if not firstTap and event.target.k == currentBoard and not mylib.isWin(subBoards[event.target.k]) then -- Check that the current move was done on the appropriate subboard
         checkSubMove(event)
 
-    elseif mylib.isWin(subBoards[event.target.k]) or mylib.isTie(subBoards[event.target.k]) then
-        currentRect.target.alpha = 0.1
-        firstTap = true
-    end
-    if firstTap and not mylib.isWin(subBoards[event.target.k]) and not mylib.isTie(subBoards[event.target.k]) then
+        print("Current board in not firstTap " .. tostring(currentBoard))
+
+    -- elseif mylib.isWin(subBoards[event.target.k]) or mylib.isTie(subBoards[event.target.k]) then
+        
+    
+    elseif firstTap and not mylib.isWin(subBoards[event.target.k]) and not mylib.isTie(subBoards[event.target.k]) then
+        print("got the first tappo")
+        print("Current board in first tappo " .. tostring(currentBoard))
+        
         currentBoard = event.target.k
 
         -- Change alpha of selected MainBoard
@@ -184,9 +211,8 @@ local function checkMainBoard(event)
         currentRect.rect.alpha = 0.5
 
         firstTap = false
+        
     end
-
-
 end
 
 checkSubMove = function(event) 
@@ -200,7 +226,7 @@ checkSubMove = function(event)
     print(players[player].name .."'s move at SubBoard " .. kk)
 
     -- return if current square is not-empty
-    if board[event.target.k] ~= 0 and board[event.target.k][kk] ~= 0 then
+    if subBoards[event.target.k] ~= 0 and subBoards[event.target.k][kk] ~= 0 then
         print("\t cannot move to non-empty square")
         return false
     end
@@ -215,11 +241,17 @@ checkSubMove = function(event)
 
     --Change alpha of main board to the next move
     currentBoard = kk
-    currentRect.rect.alpha = 0.1
-    currentRect = squares[kk]
-    currentRect.rect.alpha = 0.5
-    -- place valid move
-    move(event.target.k, kk)
+    if not mylib.isWin(subBoards[kk]) and not mylib.isTie(subBoards[kk]) then
+        currentRect.rect.alpha = 0.1
+        currentRect = squares[kk]
+        currentRect.rect.alpha = 0.5
+        -- place valid move
+        move(event.target.k, kk)
+    else
+        print("into a not possible move on board ".. kk)
+        --resetTap()
+        move(event.target.k, kk, true)
+    end
 end
 
 
@@ -256,6 +288,11 @@ resetBoard = function()
             display.remove(square.symbol)
             square.symbol = nil
         end
+        for _,sSquare in ipairs(subSquare) do
+            display.remove(square.symbol)
+            square.symbol = nil
+        end
+
     end
 
     local tieCount = gameCount - players[1].wins - players[2].wins
