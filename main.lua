@@ -7,8 +7,8 @@
 local rng = require("rng")
 local colors = require("colorsRGB")
 local mylib = require("mylib")
---local ai =
-    -- require("first_space_player")
+local ai =
+    require("first_space_player")
     -- require("random_impact_player")
     --require("minimax_player")
 
@@ -21,7 +21,7 @@ local subBoards = {}
 local squares = {} -- game board buttons to deal with UI
 local players = {
     {name="X", human=true, value=1, wins=0},
-    {name="O", human=true, value=-1, wins=0},
+    {name="O", human=false, value=-1, wins=0},
 }
 local player = 1
 local gameCount = 0
@@ -29,6 +29,9 @@ local state -- 'waiting', 'thinking' 'over'
 local firstTap = true
 local currentBoard
 local currentRect
+
+local currentK
+local currentKK
 
 local gap = 6 -- gap between cells and margins
 local size = (math.min(display.contentWidth, display.contentHeight) - 4*gap) / 3
@@ -44,7 +47,7 @@ local turnText -- display name of current player
 local titleText --
 local statsText
 local gameOverBackground, gameOverText
-local resetBoard, move, checkMove, checkSubMove, checkMainBoard, resetTap
+local resetBoard, move, checkSubMove, checkMainBoard, resetTap
 
 
 -----------------------------------------------------------------------------------------
@@ -127,8 +130,20 @@ local function nextPlayer(value)
     state = players[player].human and 'waiting' or 'thinking'
 
     if state == 'thinking' then
-        local result = ai.move(board, players, player)
-        move(result)
+        local aik, aikk = ai.move(subBoards, currentBoard, board, firstTap, players, player)
+        move(aik, aikk)
+        firstTap = false
+        currentRect.rect.alpha = 0.1
+
+        if board[aikk] == 0 then
+            currentBoard = aikk
+            currentRect = squares[aikk]
+            currentRect.rect.alpha = 0.5
+        else
+            firstTap = true
+        end
+
+        
     end
 end
 
@@ -139,7 +154,7 @@ resetTap = function()
 end
 
 
-move = function(k, kk, impossible)
+move = function(k, kk)
     -- get square linked to current event
     local square = squares[k]
     local subSquare = squares[k][kk]
@@ -205,6 +220,7 @@ end
 
 checkSubMove = function(event) 
     print(players[player].name .."'s move at MainBoard " .. event.target.k)
+    print("current sub board is subboards[k] with value " .. " random val 5 is " .. subBoards[currentBoard][5] )
 
     local x = math.floor((event.x-event.target.x) / (size/3) +0.5) + 2
     --print ("X : "..x )
@@ -238,33 +254,8 @@ checkSubMove = function(event)
     else
         print("into a not possible move on board ".. kk)
         --resetTap()
-        move(event.target.k, kk, true)
+        move(event.target.k, kk)
     end
-end
-
-
-checkMove = function(event)
-
-    print(players[player].name .."'s move at square " .. event.target.k)
-    print("Event x coord"..event.x.."Event y coord"..event.y)
-
-    -- return if current square is not-empty
-    if board[event.target.k] ~= 0 then
-        print("\t cannot move to non-empty square")
-        return false
-    end
-
-    -- return if current player is non-human
-    if state ~= 'waiting' then
-        print("\t computer playing")
-        return
-    end
-
-    audio.play( tapSound, { channel=2})
-
-    -- place valid move
-    move(event.target.k)
-
 end
 
 
