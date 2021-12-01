@@ -8,8 +8,8 @@ local rng = require("rng")
 local colors = require("colorsRGB")
 local mylib = require("mylib")
 local ai =
-    require("first_space_player")
-    -- require("random_impact_player")
+    -- require("first_space_player")
+     require("random_impact_player")
     --require("minimax_player")
 
 local backGroup = display.newGroup()
