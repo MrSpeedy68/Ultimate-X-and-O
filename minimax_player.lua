@@ -6,7 +6,7 @@ local mylib = require("mylib")
 WON = 100
 
 -- visible to game so that it modified by user
-ai.maxDepth = 11
+ai.maxDepth = 9
 
 -- compute a score for current game state
 function ai.eval(board)
@@ -16,11 +16,12 @@ end
 
 -- recursive function to perform minimax search
 -- returns score,move
-function ai.search(board, players, player, depth)
+function ai.search(subBoard, currentBoardVal, board, firstTap, players, player, depth)
 
     local debug = false
     local bestScore = -math.huge
     local bestMove = 1
+    local bestBoard = 1
 
     depth = depth or 1
     local indent = string.rep("  ", depth)
@@ -28,12 +29,12 @@ function ai.search(board, players, player, depth)
     if debug then print(indent .. "SEARCHING at depth "..depth .." as PLAYER "..players[player].name) end
 
     -- check if win
-    if mylib.isWin(board) then
+    if mylib.isWin(subBoard[currentBoardVal]) then
         return 100
     end
 
     -- check if tie
-    if mylib.isTie(board) then
+    if mylib.isTie(subBoard[currentBoardVal]) then
         return 0
     end
     -- check if search reached max depth
@@ -42,18 +43,20 @@ function ai.search(board, players, player, depth)
     end
 
     -- iterate over all possible move
+
     for k = 1, 9 do
         -- place piece 
-        if board[k] == 0 then 
-            board[k] = players[player].value 
+        if subBoard[currentBoardVal][k] == 0 then 
+            subBoard[currentBoardVal][k] = players[player].value 
         -- get score from recursive call to ai.search, switching players
-            score,_ = ai.search(board, players, player%2+1, depth+1)
+            score,_ = ai.search(subBoard, currentBoardVal, board, firstTap, players, player%2+1, depth+1)
         -- remove piece
-            board[k] = 0
+            subBoard[currentBoardVal][k] = 0
         -- if score better than found to date update best score and best move
             if score > bestScore then
                 bestScore = score
                 bestMove = k
+                bestBoard = currentBoardVal
             end
         end
     end
@@ -61,16 +64,21 @@ function ai.search(board, players, player, depth)
     if debug then print(indent .. "OPTIMAL MOVE "..bestMove .. " with score " ..bestScore) end
 
     -- return best score and best move
-    return -bestScore, bestMove
+    return -bestScore, bestBoard, bestMove
 end
 
 
 -- public interface to minimax search function
-ai.move = function(board, players, player)
+ai.move = function(subBoard, currentBoardVal, board, firstTap, players, player)
+    local _,bestBoard, move
 
-    local _, move = ai.search(board, players, player)
+    if not firstTap then
+        print("Entered AI")
+        _,bestBoard, move = ai.search(subBoard, currentBoardVal, board, firstTap, players, player)
+        return bestBoard,move
 
-    return move
+    end
+
 end
 
 return ai

@@ -9,8 +9,8 @@ local colors = require("colorsRGB")
 local mylib = require("mylib")
 local ai =
     -- require("first_space_player")
-     require("random_impact_player")
-    --require("minimax_player")
+    -- require("random_impact_player")
+     require("minimax_player")
 
 local backGroup = display.newGroup()
 local mainGroup = display.newGroup()
@@ -129,10 +129,28 @@ local function nextPlayer(value)
 
     state = players[player].human and 'waiting' or 'thinking'
 
+    print("First Tap is "..tostring(firstTap))
+
     if state == 'thinking' then
         local aik, aikk = ai.move(subBoards, currentBoard, board, firstTap, players, player)
+
+        print("KKKKKKKKKKKKKK "..tostring(aik) .. tostring(aikk))
+
+        if aik == nil or aikk == nil then
+            for k = 1, 9 do
+                if board[k] == 0 then
+                    for kk = 1, 9 do
+                        if subBoards[k][kk] == 0 then
+                            aik = k
+                            aikk = kk
+                        end
+                    end
+                end
+            end
+        end 
+
         move(aik, aikk)
-        firstTap = false
+        --firstTap = false
         currentRect.rect.alpha = 0.1
 
         if board[aikk] == 0 then
